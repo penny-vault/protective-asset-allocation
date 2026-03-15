@@ -1,3 +1,18 @@
+// Copyright 2021-2026
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -20,11 +35,11 @@ import (
 var description string
 
 type ProtectiveAssetAllocation struct {
-	RiskUniverse       universe.Universe `pvbt:"risk-universe" desc:"List of ETF, Mutual Fund, or Stock tickers in the risk universe" default:"SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT" suggest:"Default=SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT"`
-	ProtectiveUniverse universe.Universe `pvbt:"protective-universe" desc:"Safe-haven bond assets for crash protection" default:"IEF,SHY,STIP" suggest:"Default=IEF,SHY,STIP|Conservative=SHV"`
-	ProtectionFactor   int               `pvbt:"protection-factor" desc:"How protective the crash protection should be; higher is more protective" default:"2"`
-	Lookback           int               `pvbt:"lookback" desc:"Number of months for momentum lookback" default:"12"`
-	TopN               int               `pvbt:"top-n" desc:"Number of top risk assets to invest in" default:"6"`
+	RiskUniverse       universe.Universe `pvbt:"risk-universe" desc:"List of ETF, Mutual Fund, or Stock tickers in the risk universe" default:"SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT" suggest:"PAA-Conservative=SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT|PAA0=SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT|PAA1=SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT|PAA2=SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT"`
+	ProtectiveUniverse universe.Universe `pvbt:"protective-universe" desc:"Safe-haven bond assets for crash protection" default:"IEF,SHY,STIP" suggest:"PAA-Conservative=SHV|PAA0=IEF,SHY|PAA1=IEF,SHY|PAA2=IEF,SHY"`
+	ProtectionFactor   int               `pvbt:"protection-factor" desc:"How protective the crash protection should be; higher is more protective" default:"2" suggest:"PAA-Conservative=2|PAA0=0|PAA1=1|PAA2=2"`
+	Lookback           int               `pvbt:"lookback" desc:"Number of months for momentum lookback" default:"12" suggest:"PAA-Conservative=12|PAA0=12|PAA1=12|PAA2=12"`
+	TopN               int               `pvbt:"top-n" desc:"Number of top risk assets to invest in" default:"6" suggest:"PAA-Conservative=6|PAA0=6|PAA1=6|PAA2=6"`
 }
 
 func (s *ProtectiveAssetAllocation) Name() string {
