@@ -18,6 +18,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/penny-vault/pvbt/portfolio"
 	"github.com/penny-vault/pvbt/tradecron"
 	"github.com/penny-vault/pvbt/universe"
-	"github.com/rs/zerolog"
 )
 
 //go:embed README.md
@@ -71,21 +71,17 @@ type assetScore struct {
 	Score float64
 }
 
-func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engine, p portfolio.Portfolio) {
-	log := zerolog.Ctx(ctx)
-
+func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engine, p portfolio.Portfolio) error {
 	// 1. Fetch lookback+1 month window of daily close prices for risk universe.
 	riskDF, err := s.RiskUniverse.Window(ctx, portfolio.Months(s.Lookback+1), data.MetricClose)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to fetch risk universe prices")
-		return
+		return fmt.Errorf("failed to fetch risk universe prices: %w", err)
 	}
 
 	// Fetch lookback+1 month window for protective universe.
 	protDF, err := s.ProtectiveUniverse.Window(ctx, portfolio.Months(s.Lookback+1), data.MetricClose)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to fetch protective universe prices")
-		return
+		return fmt.Errorf("failed to fetch protective universe prices: %w", err)
 	}
 
 	// 2. Downsample to monthly, drop NaN.
@@ -94,7 +90,7 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 
 	// Need at least lookback+2 rows for SMA(lookback+1) to produce a value.
 	if riskPrices.Len() < s.Lookback+2 || protPrices.Len() < s.Lookback+2 {
-		return
+		return nil
 	}
 
 	// 3. Compute SMA-based momentum: MOM = (price / SMA(lookback+1) - 1) * 100
@@ -109,7 +105,7 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 	protMomentum = protMomentum.Last()
 
 	if riskMomentum.Len() == 0 || protMomentum.Len() == 0 {
-		return
+		return nil
 	}
 
 	// 4. Count "good" risk assets (those with momentum > 0).
@@ -175,8 +171,20 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 		alloc.Members[bestProtAsset] = bf
 	}
 
+	// Build justification string.
+	justification := fmt.Sprintf("good=%d/%d BF=%.2f SF=%.2f", n, len(riskAssets), bf, sf)
+	for _, s := range scored {
+		justification += fmt.Sprintf(" %s=%.4f", s.Asset.Ticker, s.Score)
+	}
+	if bf > 0 {
+		justification += fmt.Sprintf(" prot=%s", bestProtAsset.Ticker)
+	}
+	alloc.Justification = justification
+
 	// 10. Rebalance.
 	if err := p.RebalanceTo(ctx, alloc); err != nil {
-		log.Error().Err(err).Msg("rebalance failed")
+		return fmt.Errorf("rebalance failed: %w", err)
 	}
+
+	return nil
 }
