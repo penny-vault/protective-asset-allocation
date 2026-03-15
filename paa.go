@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"math"
 	"sort"
 	"time"
@@ -14,6 +15,9 @@ import (
 	"github.com/penny-vault/pvbt/universe"
 	"github.com/rs/zerolog"
 )
+
+//go:embed README.md
+var description string
 
 type ProtectiveAssetAllocation struct {
 	RiskUniverse       universe.Universe `pvbt:"risk-universe" desc:"List of ETF, Mutual Fund, or Stock tickers in the risk universe" default:"SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT" suggest:"Default=SPY,QQQ,IWM,VGK,EWJ,EEM,IYR,GSG,GLD,HYG,LQD,TLT"`
@@ -40,7 +44,7 @@ func (s *ProtectiveAssetAllocation) Setup(e *engine.Engine) {
 func (s *ProtectiveAssetAllocation) Describe() engine.StrategyDescription {
 	return engine.StrategyDescription{
 		ShortCode:   "paa",
-		Description: "Keller's Protective Asset Allocation uses SMA-based momentum and a bond-fraction crash protection mechanism.",
+		Description: description,
 		Source:      "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2759734",
 		Version:     "1.0.0",
 		VersionDate: time.Date(2026, 3, 14, 0, 0, 0, 0, time.UTC),
