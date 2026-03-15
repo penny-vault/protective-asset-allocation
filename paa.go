@@ -104,6 +104,10 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 	protMomentum := protPrices.Div(protSMA).AddScalar(-1).MulScalar(100).Drop(math.NaN())
 	protMomentum = protMomentum.Last()
 
+	// Annotate portfolio with all momentum scores.
+	riskMomentum.Annotate(p)
+	protMomentum.Annotate(p)
+
 	if riskMomentum.Len() == 0 || protMomentum.Len() == 0 {
 		return nil
 	}
@@ -171,15 +175,13 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 		alloc.Members[bestProtAsset] = bf
 	}
 
-	// Build justification string.
-	justification := fmt.Sprintf("good=%d/%d BF=%.2f SF=%.2f", n, len(riskAssets), bf, sf)
-	for _, s := range scored {
-		justification += fmt.Sprintf(" %s=%.4f", s.Asset.Ticker, s.Score)
-	}
-	if bf > 0 {
-		justification += fmt.Sprintf(" prot=%s", bestProtAsset.Ticker)
-	}
-	alloc.Justification = justification
+	// Annotate decision values.
+	ts := e.CurrentDate().Unix()
+	p.Annotate(ts, "good", fmt.Sprintf("%d", n))
+	p.Annotate(ts, "BF", fmt.Sprintf("%.2f", bf))
+	p.Annotate(ts, "SF", fmt.Sprintf("%.2f", sf))
+
+	alloc.Justification = fmt.Sprintf("good=%d/%d BF=%.2f", n, len(riskAssets), bf)
 
 	// 10. Rebalance.
 	if err := p.RebalanceTo(ctx, alloc); err != nil {
