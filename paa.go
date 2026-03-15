@@ -46,14 +46,15 @@ func (s *ProtectiveAssetAllocation) Name() string {
 	return "Protective Asset Allocation"
 }
 
-func (s *ProtectiveAssetAllocation) Setup(e *engine.Engine) {
+func (s *ProtectiveAssetAllocation) Setup(eng *engine.Engine) {
 	tc, err := tradecron.New("@monthend", tradecron.MarketHours{Open: 930, Close: 1600})
 	if err != nil {
 		panic(err)
 	}
-	e.Schedule(tc)
-	e.SetBenchmark(e.Asset("SHV"))
-	e.RiskFreeAsset(e.Asset("DGS3MO"))
+
+	eng.Schedule(tc)
+	eng.SetBenchmark(eng.Asset("SHV"))
+	eng.RiskFreeAsset(eng.Asset("DGS3MO"))
 }
 
 func (s *ProtectiveAssetAllocation) Describe() engine.StrategyDescription {
@@ -71,7 +72,7 @@ type assetScore struct {
 	Score float64
 }
 
-func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engine, p portfolio.Portfolio) error {
+func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Engine, strategyPortfolio portfolio.Portfolio) error {
 	// 1. Fetch lookback+1 month window of daily close prices for risk universe.
 	riskDF, err := s.RiskUniverse.Window(ctx, portfolio.Months(s.Lookback+1), data.MetricClose)
 	if err != nil {
@@ -105,8 +106,8 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 	protMomentum = protMomentum.Last()
 
 	// Annotate portfolio with all momentum scores.
-	riskMomentum.Annotate(p)
-	protMomentum.Annotate(p)
+	riskMomentum.Annotate(strategyPortfolio)
+	protMomentum.Annotate(strategyPortfolio)
 
 	if riskMomentum.Len() == 0 || protMomentum.Len() == 0 {
 		return nil
@@ -114,23 +115,28 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 
 	// 4. Count "good" risk assets (those with momentum > 0).
 	riskAssets := riskMomentum.AssetList()
-	n := 0
+	goodCount := 0
+
 	var scored []assetScore
+
 	for _, a := range riskAssets {
 		mom := riskMomentum.Value(a, data.MetricClose)
 		if mom > 0 {
-			n++
+			goodCount++
+
 			scored = append(scored, assetScore{Asset: a, Score: mom})
 		}
 	}
 
 	// 5. Compute bond fraction.
-	N := float64(len(riskAssets))
-	n1 := float64(s.ProtectionFactor) * N / 4.0
-	bf := (N - float64(n)) / (N - n1)
+	totalAssets := float64(len(riskAssets))
+	n1 := float64(s.ProtectionFactor) * totalAssets / 4.0
+	bf := (totalAssets - float64(goodCount)) / (totalAssets - n1)
+
 	if bf > 1.0 {
 		bf = 1.0
 	}
+
 	if bf < 0.0 {
 		bf = 0.0
 	}
@@ -142,14 +148,18 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 	sort.Slice(scored, func(i, j int) bool {
 		return scored[i].Score > scored[j].Score
 	})
+
 	if len(scored) > s.TopN {
 		scored = scored[:s.TopN]
 	}
 
 	// 8. Select highest-momentum protective asset.
 	protAssets := protMomentum.AssetList()
+
 	var bestProtAsset asset.Asset
+
 	bestProtScore := math.Inf(-1)
+
 	for _, a := range protAssets {
 		mom := protMomentum.Value(a, data.MetricClose)
 		if mom > bestProtScore {
@@ -160,12 +170,13 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 
 	// 9. Build allocation.
 	alloc := portfolio.Allocation{
-		Date:    e.CurrentDate(),
+		Date:    eng.CurrentDate(),
 		Members: make(map[asset.Asset]float64),
 	}
 
 	if len(scored) > 0 && sf > 0 {
 		weight := sf / float64(len(scored))
+
 		for _, s := range scored {
 			alloc.Members[s.Asset] = weight
 		}
@@ -176,15 +187,15 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, e *engine.Engin
 	}
 
 	// Annotate decision values.
-	ts := e.CurrentDate().Unix()
-	p.Annotate(ts, "good", fmt.Sprintf("%d", n))
-	p.Annotate(ts, "BF", fmt.Sprintf("%.2f", bf))
-	p.Annotate(ts, "SF", fmt.Sprintf("%.2f", sf))
+	ts := eng.CurrentDate().Unix()
+	strategyPortfolio.Annotate(ts, "good", fmt.Sprintf("%d", goodCount))
+	strategyPortfolio.Annotate(ts, "BF", fmt.Sprintf("%.2f", bf))
+	strategyPortfolio.Annotate(ts, "SF", fmt.Sprintf("%.2f", sf))
 
-	alloc.Justification = fmt.Sprintf("good=%d/%d BF=%.2f", n, len(riskAssets), bf)
+	alloc.Justification = fmt.Sprintf("good=%d/%d BF=%.2f", goodCount, len(riskAssets), bf)
 
 	// 10. Rebalance.
-	if err := p.RebalanceTo(ctx, alloc); err != nil {
+	if err := strategyPortfolio.RebalanceTo(ctx, alloc); err != nil {
 		return fmt.Errorf("rebalance failed: %w", err)
 	}
 
