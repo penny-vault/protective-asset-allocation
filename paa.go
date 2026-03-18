@@ -54,7 +54,6 @@ func (s *ProtectiveAssetAllocation) Setup(eng *engine.Engine) {
 
 	eng.Schedule(tc)
 	eng.SetBenchmark(eng.Asset("SHV"))
-	eng.RiskFreeAsset(eng.Asset("DGS3MO"))
 }
 
 func (s *ProtectiveAssetAllocation) Describe() engine.StrategyDescription {
