@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/penny-vault/pvbt/asset"
 	"github.com/penny-vault/pvbt/data"
 	"github.com/penny-vault/pvbt/engine"
 	"github.com/penny-vault/pvbt/portfolio"
-	"github.com/penny-vault/pvbt/tradecron"
 	"github.com/penny-vault/pvbt/universe"
 )
 
@@ -46,15 +46,7 @@ func (s *ProtectiveAssetAllocation) Name() string {
 	return "Protective Asset Allocation"
 }
 
-func (s *ProtectiveAssetAllocation) Setup(eng *engine.Engine) {
-	tc, err := tradecron.New("@monthend", tradecron.MarketHours{Open: 930, Close: 1600})
-	if err != nil {
-		panic(err)
-	}
-
-	eng.Schedule(tc)
-	eng.SetBenchmark(eng.Asset("SHV"))
-}
+func (s *ProtectiveAssetAllocation) Setup(_ *engine.Engine) {}
 
 func (s *ProtectiveAssetAllocation) Describe() engine.StrategyDescription {
 	return engine.StrategyDescription{
@@ -63,6 +55,8 @@ func (s *ProtectiveAssetAllocation) Describe() engine.StrategyDescription {
 		Source:      "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2759734",
 		Version:     "1.0.0",
 		VersionDate: time.Date(2026, 3, 14, 0, 0, 0, 0, time.UTC),
+		Schedule:    "@monthend",
+		Benchmark:   "SHV",
 	}
 }
 
@@ -71,7 +65,7 @@ type assetScore struct {
 	Score float64
 }
 
-func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Engine, strategyPortfolio portfolio.Portfolio) error {
+func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Engine, strategyPortfolio portfolio.Portfolio, batch *portfolio.Batch) error {
 	// 1. Fetch lookback+1 month window of daily close prices for risk universe.
 	riskDF, err := s.RiskUniverse.Window(ctx, portfolio.Months(s.Lookback+1), data.MetricClose)
 	if err != nil {
@@ -105,8 +99,22 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Eng
 	protMomentum = protMomentum.Last()
 
 	// Annotate portfolio with all momentum scores.
-	riskMomentum.Annotate(strategyPortfolio)
-	protMomentum.Annotate(strategyPortfolio)
+	for _, a := range riskMomentum.AssetList() {
+		for _, m := range riskMomentum.MetricList() {
+			v := riskMomentum.Value(a, m)
+			if !math.IsNaN(v) {
+				batch.Annotate(a.Ticker+"/"+string(m), strconv.FormatFloat(v, 'f', -1, 64))
+			}
+		}
+	}
+	for _, a := range protMomentum.AssetList() {
+		for _, m := range protMomentum.MetricList() {
+			v := protMomentum.Value(a, m)
+			if !math.IsNaN(v) {
+				batch.Annotate(a.Ticker+"/"+string(m), strconv.FormatFloat(v, 'f', -1, 64))
+			}
+		}
+	}
 
 	if riskMomentum.Len() == 0 || protMomentum.Len() == 0 {
 		return nil
@@ -186,15 +194,14 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Eng
 	}
 
 	// Annotate decision values.
-	ts := eng.CurrentDate().Unix()
-	strategyPortfolio.Annotate(ts, "good", fmt.Sprintf("%d", goodCount))
-	strategyPortfolio.Annotate(ts, "BF", fmt.Sprintf("%.2f", bf))
-	strategyPortfolio.Annotate(ts, "SF", fmt.Sprintf("%.2f", sf))
+	batch.Annotate("good", fmt.Sprintf("%d", goodCount))
+	batch.Annotate("BF", fmt.Sprintf("%.2f", bf))
+	batch.Annotate("SF", fmt.Sprintf("%.2f", sf))
 
 	alloc.Justification = fmt.Sprintf("good=%d/%d BF=%.2f", goodCount, len(riskAssets), bf)
 
 	// 10. Rebalance.
-	if err := strategyPortfolio.RebalanceTo(ctx, alloc); err != nil {
+	if err := batch.RebalanceTo(ctx, alloc); err != nil {
 		return fmt.Errorf("rebalance failed: %w", err)
 	}
 
