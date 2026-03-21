@@ -107,6 +107,7 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Eng
 			}
 		}
 	}
+
 	for _, a := range protMomentum.AssetList() {
 		for _, m := range protMomentum.MetricList() {
 			v := protMomentum.Value(a, m)
