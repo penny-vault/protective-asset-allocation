@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package paa
 
 import (
 	"context"
@@ -66,14 +66,17 @@ type assetScore struct {
 }
 
 func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Engine, strategyPortfolio portfolio.Portfolio, batch *portfolio.Batch) error {
-	// 1. Fetch lookback+1 month window of daily close prices for risk universe.
-	riskDF, err := s.RiskUniverse.Window(ctx, portfolio.Months(s.Lookback+1), data.MetricClose)
+	// 1. Fetch lookback+2 month window of adjusted close prices for risk universe.
+	//    The PAA paper specifies total return prices (adjusted for dividends/splits).
+	//    We need lookback+1 prices for SMA(lookback+1), plus one extra month
+	//    so that Rolling().Mean() produces at least one output row.
+	riskDF, err := s.RiskUniverse.Window(ctx, portfolio.Months(s.Lookback+2), data.AdjClose)
 	if err != nil {
 		return fmt.Errorf("failed to fetch risk universe prices: %w", err)
 	}
 
-	// Fetch lookback+1 month window for protective universe.
-	protDF, err := s.ProtectiveUniverse.Window(ctx, portfolio.Months(s.Lookback+1), data.MetricClose)
+	// Fetch lookback+2 month window for protective universe.
+	protDF, err := s.ProtectiveUniverse.Window(ctx, portfolio.Months(s.Lookback+2), data.AdjClose)
 	if err != nil {
 		return fmt.Errorf("failed to fetch protective universe prices: %w", err)
 	}
@@ -128,7 +131,7 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Eng
 	var scored []assetScore
 
 	for _, a := range riskAssets {
-		mom := riskMomentum.Value(a, data.MetricClose)
+		mom := riskMomentum.Value(a, data.AdjClose)
 		if mom > 0 {
 			goodCount++
 
@@ -169,7 +172,7 @@ func (s *ProtectiveAssetAllocation) Compute(ctx context.Context, eng *engine.Eng
 	bestProtScore := math.Inf(-1)
 
 	for _, a := range protAssets {
-		mom := protMomentum.Value(a, data.MetricClose)
+		mom := protMomentum.Value(a, data.AdjClose)
 		if mom > bestProtScore {
 			bestProtScore = mom
 			bestProtAsset = a
