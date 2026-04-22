@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-04-21
+
+### Fixed
+- Remove local pvbt replace directive so the module resolves correctly outside the monorepo
+
+
+
 ## [0.1.0] - 2026-04-21
 
 ### Added
@@ -13,3 +20,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uses AdjClose prices for momentum calculation with snapshot-based unit tests
 
 [0.1.0]: https://github.com/penny-vault/protective-asset-allocation/releases/tag/v0.1.0
+
+[0.1.1]: https://github.com/penny-vault/protective-asset-allocation/compare/v0.1.0...v0.1.1
