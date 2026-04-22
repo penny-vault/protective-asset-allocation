@@ -8,8 +8,6 @@ require (
 	github.com/penny-vault/pvbt v0.7.6
 )
 
-replace github.com/penny-vault/pvbt => ../../pvbt
-
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/NimbleMarkets/ntcharts v0.4.0 // indirect
