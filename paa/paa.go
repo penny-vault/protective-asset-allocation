@@ -53,8 +53,8 @@ func (s *ProtectiveAssetAllocation) Describe() engine.StrategyDescription {
 		ShortCode:   "paa",
 		Description: description,
 		Source:      "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2759734",
-		Version:     "1.0.0",
-		VersionDate: time.Date(2026, 3, 14, 0, 0, 0, 0, time.UTC),
+		Version:     "1.0.1",
+		VersionDate: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC),
 		Schedule:    "@monthend",
 		Benchmark:   "SHV",
 	}
